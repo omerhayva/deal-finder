@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { --font-sans: "Inter"; --font-display: "DM Serif Display"; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: #f7f8f5; color: #19221f; font-family: var(--font-sans), Arial, sans-serif; }
+button, input, select, textarea { font: inherit; }
+::selection { background: #dff1e9; color: #19221f; }
+
+@layer components {
+  .container-shell { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-coral; }
+  .button-primary { @apply inline-flex items-center justify-center rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-coral focus:outline-none focus:ring-2 focus:ring-coral focus:ring-offset-2; }
+  .button-secondary { @apply inline-flex items-center justify-center rounded-full border border-ink/15 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:border-ink/40 hover:bg-mint; }
+}
