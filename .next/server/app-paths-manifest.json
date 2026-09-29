@@ -1,8 +1,17 @@
 {
-  "/page": "app/page.js",
-  "/search/page": "app/search/page.js",
-  "/product/[slug]/page": "app/product/[slug]/page.js",
-  "/submit/page": "app/submit/page.js",
   "/_not-found/page": "app/_not-found/page.js",
-  "/go/[productId]/route": "app/go/[productId]/route.js"
+  "/admin/products/page": "app/admin/products/page.js",
+  "/page": "app/page.js",
+  "/robots.txt/route": "app/robots.txt/route.js",
+  "/go/[productId]/route": "app/go/[productId]/route.js",
+  "/search/page": "app/search/page.js",
+  "/sitemap.xml/route": "app/sitemap.xml/route.js",
+  "/about/page": "app/about/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/faq/page": "app/faq/page.js",
+  "/privacy/page": "app/privacy/page.js",
+  "/submit/page": "app/submit/page.js",
+  "/admin/submissions/page": "app/admin/submissions/page.js",
+  "/product/[slug]/page": "app/product/[slug]/page.js",
+  "/terms/page": "app/terms/page.js"
 }

@@ -6,7 +6,28 @@ export type ProductCategory =
   | "Jewelry"
   | "Clothing"
   | "Printable"
-  | "Wall Art";
+  | "Wall Art"
+  | "General";
+
+/**
+ * Validates a string as a ProductCategory.
+ * Returns the validated category or "General" as fallback.
+ */
+export function productCategoryValidate(value: string): ProductCategory {
+  const valid: ProductCategory[] = [
+    "Wedding",
+    "Home Decor",
+    "Digital Products",
+    "Gifts",
+    "Jewelry",
+    "Clothing",
+    "Printable",
+    "Wall Art",
+  ];
+  return valid.includes(value as ProductCategory) ? (value as ProductCategory) : "General";
+}
+
+export type ProductStatus = "pending" | "approved" | "rejected" | "expired";
 
 export type Product = {
   id: string;
@@ -22,16 +43,19 @@ export type Product = {
   discountPercent: number;
   expiresAt?: string;
   verifiedAt: string;
-  /** Future: set when product is part of a paid featured placement */
   featured?: boolean;
-  /** Future: expiration date for featured placement */
   featuredUntil?: string;
+  // --- Production fields ---
+  description?: string;
+  source?: string;
+  sourceId?: string;
+  currency?: string;
+  status?: ProductStatus;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
-/**
- * MOCK DATA — for development/demo only.
- * Replace with real API data when backend is connected.
- */
+/** MOCK DATA — for development/demo only. Replace with real API data when backend is connected. */
 export const products: Product[] = [
   {
     id: "p1",

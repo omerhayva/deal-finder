@@ -1,7 +1,18 @@
 import { MetadataRoute } from "next";
-import { products } from "@/lib/mock-data";
+import { getProducts } from "@/lib/products";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://dealfinder.example";
-  return [{ url: base, lastModified: new Date() }, { url: `${base}/search`, lastModified: new Date() }, { url: `${base}/submit`, lastModified: new Date() }, ...products.map((product) => ({ url: `${base}/product/${product.slug}`, lastModified: new Date(product.verifiedAt) }))];
+
+  const products = await getProducts();
+
+  return [
+    { url: base, lastModified: new Date() },
+    { url: `${base}/search`, lastModified: new Date() },
+    { url: `${base}/submit`, lastModified: new Date() },
+    ...products.map((product) => ({
+      url: `${base}/product/${product.slug}`,
+      lastModified: product.verifiedAt ? new Date(product.verifiedAt) : new Date(),
+    })),
+  ];
 }

@@ -1,0 +1,3 @@
+// This file exists to satisfy the `require("@/lib/types")` dynamic import
+// used by lib/products/store.ts for the in-memory mock-data fallback.
+// Do not delete — it is referenced at runtime when Supabase is not configured.
