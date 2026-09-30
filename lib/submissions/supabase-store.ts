@@ -1,6 +1,6 @@
 import { Submission, SubmissionStatus } from "./types";
 import type { SubmissionStore } from "./store";
-import { supabaseAdmin } from "../supabase-admin";
+import { getSupabaseAdmin } from "../supabase-admin";
 
 function toIso(value: unknown): string | undefined {
   if (!value) return undefined;
@@ -34,7 +34,7 @@ function mapRowToSubmission(row: Record<string, unknown>): Submission {
 
 export class SupabaseSubmissionStore implements SubmissionStore {
   async create(submission: Submission): Promise<void> {
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from("submissions")
       .insert({
         id: submission.id,
@@ -58,7 +58,7 @@ export class SupabaseSubmissionStore implements SubmissionStore {
   }
 
   async getAll(): Promise<readonly Submission[]> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from("submissions")
       .select("*")
       .order("created_at", { ascending: false });
@@ -73,7 +73,7 @@ export class SupabaseSubmissionStore implements SubmissionStore {
   }
 
   async getById(id: string): Promise<Submission | undefined> {
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await getSupabaseAdmin()
       .from("submissions")
       .select("*")
       .eq("id", id)
@@ -92,7 +92,7 @@ export class SupabaseSubmissionStore implements SubmissionStore {
     id: string,
     status: SubmissionStatus
   ): Promise<void> {
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from("submissions")
       .update({ status })
       .eq("id", id)

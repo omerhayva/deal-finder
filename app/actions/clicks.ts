@@ -1,6 +1,6 @@
 "use server";
 
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import type { Product } from "@/lib/products/types";
 
 interface RecordClickParams {
@@ -29,7 +29,7 @@ export async function recordClick(params: RecordClickParams): Promise<void> {
       // Try persistent Supabase storage if configured
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
       if (serviceKey) {
-        const { error } = await supabaseAdmin.from("clicks").insert({
+        const { error } = await getSupabaseAdmin().from("clicks").insert({
           id: crypto.randomUUID(),
           product_id: params.productId,
           referrer: params.source || null,
