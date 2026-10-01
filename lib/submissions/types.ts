@@ -21,6 +21,8 @@ export type Submission = {
   description?: string;
   status: SubmissionStatus;
   createdAt: string; // ISO 8601
+  approvedAt?: string; // first approval starts the seller's free trial
+  consentAcceptedAt?: string; // ISO 8601; recorded when the seller accepts the submission terms
 };
 
 /** Geçerli kategori değerleri (mock veriyle tutarl) */
@@ -32,4 +34,5 @@ export type SubmissionCategory =
   | "Jewelry"
   | "Clothing"
   | "Printable"
-  | "Wall Art";
+  | "Wall Art"
+  | "General";

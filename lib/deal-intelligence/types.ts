@@ -4,15 +4,13 @@
  * Bu modül, ürünün "gerçekten iyi bir fırsat olup olmadığını"
  * değerlendirmek için ihtiyaç duyulan veri yüzeyini tanımlar.
  *
- * Şu an mock veride fiyat geçmişi, rekabetçi fiyat, doğrulama yöntemi
- * gibi alanlar yok. Bu yüzden bu tipler opsiyonel/kısmi olarak tanımlanır.
- * Boş bıraktıklarında bile sistem çalışır, ileride gerçek veri geldiğinde
- * dolacaktır.
+ * Mevcut katalogda fiyat geçmişi, rakip fiyatları veya bağımsız doğrulama
+ * verisi tutulmuyor. Satıcı bildirimleri bağımsız doğrulanmış gibi sunulmamalıdır.
  */
 
 /**
  * Bir ürünün fiyat/kupon özeti.
- * Mevcut mock verisinden hemen türetilebilen alanlar burada toplanır.
+ * Mevcut katalog kayıtlarından türetilebilen alanlar burada toplanır.
  */
 export type DealSummary = {
   /** Fiyatı (mock veride price) */
@@ -25,8 +23,8 @@ export type DealSummary = {
   couponCode?: string;
   /** Kuponun geçerlilik tarihi (varsa) */
   expiresAt?: string;
-  /** Ürünün son doğrulama tarihi */
-  verifiedAt: string;
+  /** Ürünün yayına alınma tarihi */
+  publishedAt: string;
 };
 
 /**
@@ -37,7 +35,9 @@ export type DealSummary = {
 export type DealConfidence =
   /** Hiçbir veri yok — değerlendirme yapılamaz */
   | "unknown"
-  /** Temel indirim verisi var ama fiyat geçmişi yok — "indirim var" deriz, ama karşılaştırma yok */
+  /** İndirim hesaplanabilir ancak fiyat satıcı tarafından bildirilmiş; bağımsız doğrulama yok */
+  | "seller_reported_discount"
+  /** Karşılaştırma/veri eksik; indirim doğruluğu değerlendirilemiyor */
   | "insufficient_data"
   /** Doğrulanmış indirim — güncel fiyat ve orijinal fiyat var */
   | "verified_discount"

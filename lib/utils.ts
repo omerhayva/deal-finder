@@ -1,14 +1,37 @@
-import { Product } from "./types";
+import type { Product } from "./types";
+import type { Locale } from "./i18n/messages";
 
-export const formatPrice = (value: number) => `$${value.toFixed(2)}`;
+const localeTag: Record<Locale, string> = { en: "en-US", tr: "tr-TR" };
 
-export const formatDate = (value?: string) => {
-  if (!value) return "No expiry";
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
-};
+export function formatPrice(value: number, currency = "USD", locale: Locale = "en"): string {
+  const safeCurrency = /^[A-Z]{3}$/.test(currency) ? currency : "USD";
+  return new Intl.NumberFormat(localeTag[locale], {
+    style: "currency",
+    currency: safeCurrency,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
 
-export const searchProducts = (items: Product[], query: string) => {
-  const normalized = query.trim().toLowerCase();
+export function formatDate(value?: string, locale: Locale = "en"): string {
+  if (!value) return "—";
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00.000Z`)
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(localeTag[locale], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+export function searchProducts(items: Product[], query: string): Product[] {
+  const normalized = query.trim().toLocaleLowerCase("tr-TR");
   if (!normalized) return items;
-  return items.filter((product) => [product.title, product.shop, product.category, product.couponCode].some((field) => field.toLowerCase().includes(normalized)));
-};
+  return items.filter((product) =>
+    [product.title, product.shop, product.category, product.couponCode]
+      .filter(Boolean)
+      .some((field) => field.toLocaleLowerCase("tr-TR").includes(normalized)),
+  );
+}

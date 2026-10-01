@@ -17,14 +17,12 @@ export function buildDealInsight(product: Product): DealInsight {
     discountPercent: product.discountPercent,
     couponCode: product.couponCode ?? undefined,
     expiresAt: product.expiresAt ?? undefined,
-    verifiedAt: product.verifiedAt,
+    publishedAt: product.publishedAt ?? product.createdAt ?? "",
   };
 
   const confidence = assessConfidence(product);
 
-  const savings = (product.price > 0 && product.discountedPrice > 0)
-    ? product.price - product.discountedPrice
-    : 0;
+  const savings = calculateSavingsAmount(product.price, product.discountedPrice);
 
   return {
     summary,
@@ -39,15 +37,19 @@ export function buildDealInsight(product: Product): DealInsight {
 /** DealConfidence belirleme */
 
 function assessConfidence(product: Product): DealConfidence {
-  if (product.price == null || product.discountedPrice == null) {
+  if (!Number.isFinite(product.price) || !Number.isFinite(product.discountedPrice)) {
     return "unknown";
   }
-  if (typeof product.discountPercent !== "number" || !Number.isFinite(product.discountPercent)) {
+  if (
+    product.price <= 0 ||
+    product.discountedPrice < 0 ||
+    product.discountedPrice > product.price ||
+    typeof product.discountPercent !== "number" ||
+    !Number.isFinite(product.discountPercent)
+  ) {
     return "insufficient_data";
   }
-  if (product.discountPercent > 0 && product.price > 0) {
-    return "verified_discount";
-  }
+  if (product.discountPercent > 0) return "seller_reported_discount";
   return "insufficient_data";
 }
 
