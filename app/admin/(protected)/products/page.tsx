@@ -8,20 +8,14 @@ import {
   type CreateProductInput,
 } from "@/app/actions/products";
 import type { Product } from "@/lib/products/types";
+import { useLanguage } from "@/components/LocaleProvider";
+import { translateCategory } from "@/lib/i18n/messages";
+import { PRODUCT_CATEGORIES } from "@/lib/types";
 
-const CATEGORIES = [
-  "Wedding",
-  "Home Decor",
-  "Digital Products",
-  "Gifts",
-  "Jewelry",
-  "Clothing",
-  "Printable",
-  "Wall Art",
-  "General",
-];
+const CATEGORIES = [...PRODUCT_CATEGORIES, "General"] as const;
 
 export default function AdminProductsPage() {
+  const { locale, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -50,16 +44,19 @@ export default function AdminProductsPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const all = await getAllProducts();
-      if (!cancelled) {
-        setProducts(all);
-        setLoading(false);
+      try {
+        const all = await getAllProducts();
+        if (!cancelled) setProducts(all);
+      } catch {
+        if (!cancelled) setActionStatus({ type: "error", message: t("admin.productsLoadFailed") });
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -67,61 +64,63 @@ export default function AdminProductsPage() {
       setSubmitting(true);
       setActionStatus(null);
 
-      const result = await createProduct(form);
-
-      if (result.success && result.product) {
-        setProducts((prev) => [result.product!, ...prev]);
-        setActionStatus({ type: "success", message: "Ürün başarıyla eklendi." });
-        setForm({
-          title: "",
-          description: undefined,
-          imageUrl: undefined,
-          shopName: "",
-          productUrl: "",
-          category: "General",
-          originalPrice: 0,
-          discountedPrice: 0,
-          currency: "USD",
-          couponCode: undefined,
-          expiresAt: undefined,
-          source: undefined,
-          sourceId: undefined,
-        });
-      } else {
-        setActionStatus({
-          type: "error",
-          message: result.error || "Ürün eklenemedi.",
-        });
+      try {
+        const result = await createProduct(form);
+        if (result.success && result.product) {
+          setProducts((prev) => [result.product!, ...prev]);
+          setActionStatus({ type: "success", message: t("admin.productAdded") });
+          setForm({
+            title: "",
+            description: undefined,
+            imageUrl: undefined,
+            shopName: "",
+            productUrl: "",
+            category: "General",
+            originalPrice: 0,
+            discountedPrice: 0,
+            currency: "USD",
+            couponCode: undefined,
+            expiresAt: undefined,
+            source: undefined,
+            sourceId: undefined,
+          });
+        } else {
+          setActionStatus({ type: "error", message: result.error || t("admin.productAddFailed") });
+        }
+      } catch {
+        setActionStatus({ type: "error", message: t("admin.productAddRetry") });
+      } finally {
+        setSubmitting(false);
       }
-      setSubmitting(false);
     },
-    [form]
+    [form, t]
   );
 
   const handleStatusChange = useCallback(
     async (id: string, status: "approved" | "rejected" | "expired") => {
-      const ok = await updateProductStatus(id, status);
-      if (ok) {
-        setProducts((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, status: status as Product["status"] } : p))
-        );
-        setActionStatus({ type: "success", message: "Durum güncellendi." });
-      } else {
-        setActionStatus({ type: "error", message: "Durum güncellenemedi." });
+      try {
+        const ok = await updateProductStatus(id, status);
+        if (ok) {
+          setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+          setActionStatus({ type: "success", message: t("admin.productStatusUpdated") });
+        } else {
+          setActionStatus({ type: "error", message: t("admin.productStatusUpdateFailed") });
+        }
+      } catch {
+        setActionStatus({ type: "error", message: t("admin.productStatusRetry") });
       }
     },
-    []
+    [t]
   );
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
       <header className="mb-10">
         <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
-          Ürün Yönetimi
+          {t("admin.productManagementTitle")}
         </h1>
         <p className="mt-3 text-lg text-muted">
-          Katalogdaki ürünleri görüntüleyin, ekleyin veya durumlarını
-          güncelleyin.
+          {t("admin.productsIntro")}
         </p>
       </header>
 
@@ -142,34 +141,34 @@ export default function AdminProductsPage() {
         onSubmit={handleSubmit}
         className="mb-12 rounded-3xl border border-ink/10 bg-white p-6 shadow-soft sm:p-8"
       >
-        <h2 className="text-xl font-semibold">Yeni Ürün Ekle</h2>
+        <h2 className="text-xl font-semibold">{t("admin.newProduct")}</h2>
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <label className="sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold">Ürün Başlığı *</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.productTitleField")}</span>
             <input
               required
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               type="text"
-              placeholder="Örnek: Minimalist Düğün Davetiye Seti"
+              placeholder={t("admin.productTitlePlaceholder")}
               className="w-full rounded-xl border border-ink/15 bg-canvas px-4 py-3 text-sm outline-none transition focus:border-coral focus:ring-2 focus:ring-coral/10"
             />
           </label>
 
           <label className="sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold">Mağaza Adı *</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.shopNameField")}</span>
             <input
               required
               value={form.shopName}
               onChange={(e) => setForm((f) => ({ ...f, shopName: e.target.value }))}
               type="text"
-              placeholder="Örnek: MyEtsyShop"
+              placeholder={t("admin.shopNamePlaceholder")}
               className="w-full rounded-xl border border-ink/15 bg-canvas px-4 py-3 text-sm outline-none transition focus:border-coral focus:ring-2 focus:ring-coral/10"
             />
           </label>
 
           <label className="sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold">Ürün URL *</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.productUrlField")}</span>
             <input
               required
               value={form.productUrl}
@@ -181,7 +180,7 @@ export default function AdminProductsPage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">Görsel URL</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.imageUrlField")}</span>
             <input
               value={form.imageUrl || ""}
               onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value || undefined }))}
@@ -192,7 +191,7 @@ export default function AdminProductsPage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">Kategori</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.categoryField")}</span>
             <select
               value={form.category}
               onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
@@ -200,14 +199,14 @@ export default function AdminProductsPage() {
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {translateCategory(locale, c)}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">Normal Fiyat (USD) *</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.originalPriceField")}</span>
             <input
               required
               type="number"
@@ -226,7 +225,7 @@ export default function AdminProductsPage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">İndirimli Fiyat (USD) *</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.discountedPriceField")}</span>
             <input
               required
               type="number"
@@ -245,7 +244,7 @@ export default function AdminProductsPage() {
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">Kupon Kodu</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.couponField")}</span>
             <input
               value={form.couponCode || ""}
               onChange={(e) =>
@@ -255,13 +254,13 @@ export default function AdminProductsPage() {
                 }))
               }
               type="text"
-              placeholder="Örn: WELCOME20"
+              placeholder={t("admin.couponPlaceholder")}
               className="w-full rounded-xl border border-ink/15 bg-canvas px-4 py-3 text-sm outline-none transition focus:border-coral focus:ring-2 focus:ring-coral/10"
             />
           </label>
 
           <label>
-            <span className="mb-2 block text-sm font-semibold">Bitiş Tarihi</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.expiresField")}</span>
             <input
               value={form.expiresAt || ""}
               onChange={(e) =>
@@ -276,7 +275,7 @@ export default function AdminProductsPage() {
           </label>
 
           <label className="sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold">Açıklama</span>
+            <span className="mb-2 block text-sm font-semibold">{t("admin.descriptionField")}</span>
             <textarea
               value={form.description || ""}
               onChange={(e) =>
@@ -286,7 +285,7 @@ export default function AdminProductsPage() {
                 }))
               }
               rows={3}
-              placeholder="Ürün hakkında kısa bilgi..."
+              placeholder={t("admin.descriptionPlaceholder")}
               className="w-full rounded-xl border border-ink/15 bg-canvas px-4 py-3 text-sm outline-none transition focus:border-coral focus:ring-2 focus:ring-coral/10"
             />
           </label>
@@ -297,7 +296,7 @@ export default function AdminProductsPage() {
           disabled={submitting}
           className="mt-8 w-full button-primary disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
-          {submitting ? "Ekleniyor..." : "Ürünü Ekle"}
+          {submitting ? t("admin.addingProduct") : t("admin.addProductButton")}
           <span className="ml-2">→</span>
         </button>
       </form>
@@ -309,9 +308,9 @@ export default function AdminProductsPage() {
         </div>
       ) : products.length === 0 ? (
         <div className="rounded-2xl border border-ink/10 bg-white p-12 text-center">
-          <p className="text-lg font-semibold text-ink">Henüz ürün yok.</p>
+          <p className="text-lg font-semibold text-ink">{t("admin.noProducts")}</p>
           <p className="mt-1 text-sm text-muted">
-            Yukarıdaki form ile ilk ürünü ekleyin.
+            {t("admin.noProductsHint")}
           </p>
         </div>
       ) : (
@@ -342,18 +341,18 @@ export default function AdminProductsPage() {
                     {product.title}
                   </h3>
                   <p className="text-sm text-muted line-clamp-2">
-                    {product.description ?? "Açıklama yok."}
+                    {product.description ?? t("admin.noDescription")}
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-3 border-t border-ink/10 p-5 sm:grid-cols-2">
                 <div>
-                  <p className="text-xs text-muted">Mağaza</p>
+                  <p className="text-xs text-muted">{t("admin.shop")}</p>
                   <p className="mt-1 font-semibold">{product.shop}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted">Ürün URL</p>
+                  <p className="text-xs text-muted">{t("admin.productUrl")}</p>
                   <a
                     href={product.etsyUrl}
                     target="_blank"
@@ -366,40 +365,40 @@ export default function AdminProductsPage() {
                 </div>
                 <div className="flex gap-4">
                   <div>
-                    <p className="text-xs text-muted">Normal Fiyat</p>
+                    <p className="text-xs text-muted">{t("admin.originalPrice")}</p>
                     <p className="mt-1 font-semibold">
                       ${product.price.toFixed(2)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted">İndirimli Fiyat</p>
+                    <p className="text-xs text-muted">{t("admin.discountedPrice")}</p>
                     <p className="mt-1 font-semibold text-coral">
                       ${product.discountedPrice.toFixed(2)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted">İndirim</p>
+                    <p className="text-xs text-muted">{t("admin.discount")}</p>
                     <span className="rounded-full bg-coral/10 px-2 py-0.5 text-xs font-semibold text-coral">
-                      {product.discountPercent}% off
+                      {t("admin.discountValue", { percent: product.discountPercent })}
                     </span>
                   </div>
                 </div>
                 {product.couponCode && (
                   <div className="rounded-xl border border-coral/20 bg-[#fff7f3] p-3">
                     <p className="text-xs font-semibold uppercase tracking-wider text-coral">
-                      Kupon Kodu
+                      {t("admin.couponCode")}
                     </p>
                     <p className="mt-1 font-bold text-ink">{product.couponCode}</p>
                   </div>
                 )}
                 {product.expiresAt && (
                   <div className="rounded-xl bg-white p-3">
-                    <p className="text-xs text-muted">Bitiş Tarihi</p>
+                    <p className="text-xs text-muted">{t("admin.expiryDate")}</p>
                     <p className="mt-1 font-semibold">{product.expiresAt}</p>
                   </div>
                 )}
                 <div className="col-span-2 rounded-xl bg-white p-3">
-                  <p className="text-xs text-muted">Ürün ID</p>
+                  <p className="text-xs text-muted">{t("admin.productId")}</p>
                   <p className="mt-1 font-semibold font-mono text-sm">{product.id}</p>
                 </div>
                 <div className="col-span-2 flex gap-2">
@@ -408,7 +407,7 @@ export default function AdminProductsPage() {
                       onClick={() => handleStatusChange(product.id, "expired")}
                       className="flex-1 rounded-full border border-ink/10 bg-white py-2 text-sm font-semibold text-ink transition hover:bg-ink/5"
                     >
-                      Süresi Doldu Olarak İşaretle
+                      {t("admin.markExpired")}
                     </button>
                   )}
                   {product.status === "expired" && (
@@ -416,7 +415,7 @@ export default function AdminProductsPage() {
                       onClick={() => handleStatusChange(product.id, "approved")}
                       className="flex-1 rounded-full border border-green-200 bg-green-50 py-2 text-sm font-semibold text-green-700 transition hover:border-green-400 hover:bg-green-100"
                     >
-                      Aktif Yap
+                      {t("admin.makeActive")}
                     </button>
                   )}
                   {product.status === "approved" && (
@@ -424,7 +423,7 @@ export default function AdminProductsPage() {
                       onClick={() => handleStatusChange(product.id, "rejected")}
                       className="flex-1 rounded-full border border-red-200 bg-red-50 py-2 text-sm font-semibold text-red-700 transition hover:border-red-400 hover:bg-red-100"
                     >
-                      Reddet
+                      {t("admin.rejectProduct")}
                     </button>
                   )}
                 </div>

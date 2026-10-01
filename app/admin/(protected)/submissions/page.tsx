@@ -2,40 +2,42 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { SubmissionCard } from "./SubmissionCard";
-import type { Submission } from "@/lib/submissions";
-import {
-  getAllSubmissions,
-  approveSubmission,
-  rejectSubmission,
-  createProductFromSubmission,
-} from "@/app/actions/submissions";
+import type { Submission } from "@/lib/submissions/types";
+import { getAllSubmissions, approveSubmission, rejectSubmission } from "@/app/actions/submissions";
+import { useLanguage } from "@/components/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n/messages";
 
-const FILTERS = [
-  { value: "all", label: "Hepsi" },
-  { value: "pending", label: "Beklemede" },
-  { value: "approved", label: "Onaylı" },
-  { value: "rejected", label: "Reddedildi" },
-] as const;
+const FILTERS: { value: string; label: MessageKey }[] = [
+  { value: "all", label: "admin.filterAll" },
+  { value: "pending", label: "admin.filterPending" },
+  { value: "approved", label: "admin.filterApproved" },
+  { value: "rejected", label: "admin.filterRejected" },
+];
 
 export default function AdminSubmissionsPage() {
+  const { t } = useLanguage();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const all = await getAllSubmissions();
-      if (!cancelled) {
-        setSubmissions(all);
-        setLoading(false);
+      try {
+        const all = await getAllSubmissions();
+        if (!cancelled) setSubmissions(all);
+      } catch {
+        if (!cancelled) setActionError(t("admin.submissionsLoadFailed"));
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return submissions;
@@ -45,39 +47,36 @@ export default function AdminSubmissionsPage() {
   const handleAction = useCallback(
     async (id: string, status: "approved" | "rejected") => {
       setSubmittingId(id);
+      setActionError(null);
       try {
         if (status === "approved") {
-          await approveSubmission(id);
-          // Fetch the submission to create the product from it
-          const submission = await getAllSubmissions().then((all) =>
-            all.find((s) => s.id === id)
-          );
-          if (submission) {
-            await createProductFromSubmission(submission);
-          }
-        } else {
-          await rejectSubmission(id);
+          const result = await approveSubmission(id);
+          if (!result.success) throw new Error(t("admin.approvalFailed"));
+        } else if (!(await rejectSubmission(id))) {
+          throw new Error(t("admin.rejectionFailed"));
         }
-        const updated = await getAllSubmissions();
-        setSubmissions(updated);
+        setSubmissions(await getAllSubmissions());
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : t("admin.actionFailed"));
       } finally {
         setSubmittingId(null);
       }
     },
-    [],
+    [t],
   );
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12">
       <header className="mb-10">
         <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
-          Gönderiler
+          {t("admin.submissionsTitle")}
         </h1>
         <p className="mt-3 text-lg text-muted">
-          Etsy satıcıları tarafından gönderilen fırsatları inceleyin ve
-          onaylayın.
+          {t("admin.submissionsIntro")}
         </p>
       </header>
+
+      {actionError && <p role="alert" className="mb-6 rounded-xl bg-red-50 p-4 text-sm text-red-800">{actionError}</p>}
 
       <nav className="mb-8 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -90,7 +89,7 @@ export default function AdminSubmissionsPage() {
                 : "bg-white text-ink/80 hover:bg-ink/5 border border-ink/10"
             }`}
           >
-            {f.label}
+            {t(f.label)}
           </button>
         ))}
       </nav>
@@ -102,10 +101,10 @@ export default function AdminSubmissionsPage() {
       ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-ink/10 bg-white p-12 text-center">
           <p className="text-lg font-semibold text-ink">
-            Görünümde bulunabilecek gönderi yok.
+            {t("admin.noSubmissions")}
           </p>
           <p className="mt-1 text-sm text-muted">
-            Filtrelenmiş gösterimde veya genel listede hiç gönderi yok.
+            {t("admin.noSubmissionsHint")}
           </p>
         </div>
       ) : (
@@ -116,6 +115,7 @@ export default function AdminSubmissionsPage() {
               submission={submission}
               onApprove={() => handleAction(submission.id, "approved")}
               onReject={() => handleAction(submission.id, "rejected")}
+              isProcessing={submittingId === submission.id}
             />
           ))}
         </div>

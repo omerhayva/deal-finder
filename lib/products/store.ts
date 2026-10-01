@@ -1,5 +1,4 @@
-import type { Product, ProductStatus } from './types';
-import { products as mockProducts } from '@/lib/types';
+import type { Product, ProductStatus } from "./types";
 
 export interface ProductRepository {
   create(product: Product): Promise<void>;
@@ -12,120 +11,71 @@ export interface ProductRepository {
   findDuplicate(productUrl: string): Promise<Product | null>;
 }
 
-// ---------------------------------------------------------------------------
-// Development / in-memory fallback
-// Converts the existing mock products to the canonical Product shape.
-// ---------------------------------------------------------------------------
-
-function normalizeUrl(url: string): string {
+export function normalizeProductUrl(value: string): string {
   try {
-    const parsed = new URL(url);
-    parsed.search = '';
-    parsed.hash = '';
-    parsed.pathname = parsed.pathname.replace(/\/+$/, '');
-    return parsed.toString().toLowerCase();
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString().toLowerCase();
   } catch {
-    return url.toLowerCase().trim();
+    return value.trim().toLowerCase();
   }
 }
 
-function convertMockProduct(mp: typeof mockProducts[number]): Product {
-  return {
-    id: mp.id,
-    title: mp.title,
-    slug: mp.slug,
-    description: undefined,
-    image: mp.image,
-    shop: mp.shop,
-    etsyUrl: mp.etsyUrl,
-    source: 'mock',
-    category: mp.category,
-    price: mp.price,
-    discountedPrice: mp.discountedPrice,
-    currency: 'USD',
-    discountPercent: mp.discountPercent,
-    couponCode: mp.couponCode,
-    expiresAt: mp.expiresAt,
-    verifiedAt: mp.verifiedAt,
-    status: 'approved' as ProductStatus,
-    createdAt: mp.verifiedAt,
-  };
+function isCurrent(product: Product, now = Date.now()): boolean {
+  if (product.status !== "approved") return false;
+  if (!product.expiresAt) return true;
+  const expiresAt = /^\d{4}-\d{2}-\d{2}$/.test(product.expiresAt)
+    ? new Date(`${product.expiresAt}T23:59:59.999Z`).getTime()
+    : new Date(product.expiresAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt >= now;
 }
 
+/** Volatile store used only for local development when Supabase is not configured. */
 export class InMemoryProductStore implements ProductRepository {
   private products: Product[] = [];
 
-  constructor() {
-    // Lazy-initialized from mock data on first use.
-  }
-
-  private ensureMockDataLoaded(): void {
-    if (this.products.length > 0) return;
-    this.products = mockProducts.map(convertMockProduct);
-  }
-
   async create(product: Product): Promise<void> {
-    this.ensureMockDataLoaded();
-    const existing = this.products.find((p) => p.id === product.id);
-    if (existing) {
-      const idx = this.products.indexOf(existing);
-      this.products[idx] = product;
-    } else {
-      this.products.push(product);
-    }
+    const existingIndex = this.products.findIndex((item) => item.id === product.id);
+    if (existingIndex >= 0) this.products[existingIndex] = product;
+    else this.products.push(product);
   }
 
   async getById(id: string): Promise<Product | null> {
-    this.ensureMockDataLoaded();
-    return this.products.find((p) => p.id === id) ?? null;
+    return this.products.find((product) => product.id === id) ?? null;
   }
 
   async getBySlug(slug: string): Promise<Product | null> {
-    this.ensureMockDataLoaded();
-    return this.products.find((p) => p.slug === slug) ?? null;
+    return this.products.find((product) => product.slug === slug) ?? null;
   }
 
   async getAll(): Promise<Product[]> {
-    this.ensureMockDataLoaded();
-    return [...this.products];
+    return [...this.products].sort((a, b) =>
+      (b.createdAt ?? "").localeCompare(a.createdAt ?? ""),
+    );
   }
 
   async getApproved(): Promise<Product[]> {
-    this.ensureMockDataLoaded();
-    const now = new Date();
-    return this.products
-      .filter((p) => p.status === 'approved')
-      .filter((p) => {
-        if (!p.expiresAt) return true;
-        return new Date(p.expiresAt) > now;
-      })
-      .sort((a, b) => new Date(b.createdAt ?? '').getTime() - new Date(a.createdAt ?? '').getTime());
+    const now = Date.now();
+    return (await this.getAll()).filter((product) => isCurrent(product, now));
   }
 
   async updateStatus(id: string, status: ProductStatus): Promise<void> {
-    this.ensureMockDataLoaded();
-    const idx = this.products.findIndex((p) => p.id === id);
-    if (idx >= 0) {
-      this.products[idx] = { ...this.products[idx], status };
-    }
+    const index = this.products.findIndex((product) => product.id === id);
+    if (index < 0) throw new Error("Product not found.");
+    this.products[index] = { ...this.products[index], status, updatedAt: new Date().toISOString() };
   }
 
   async update(product: Product): Promise<void> {
-    this.ensureMockDataLoaded();
-    const idx = this.products.findIndex((p) => p.id === product.id);
-    if (idx >= 0) {
-      this.products[idx] = product;
-    } else {
-      this.products.push(product);
-    }
+    const index = this.products.findIndex((item) => item.id === product.id);
+    if (index < 0) throw new Error("Product not found.");
+    this.products[index] = product;
   }
 
   async findDuplicate(productUrl: string): Promise<Product | null> {
-    this.ensureMockDataLoaded();
-    const normalized = normalizeUrl(productUrl);
-    return this.products.find(
-      (p) => normalizeUrl(p.etsyUrl) === normalized
-    ) ?? null;
+    const normalized = normalizeProductUrl(productUrl);
+    return this.products.find((product) => normalizeProductUrl(product.etsyUrl) === normalized) ?? null;
   }
 }
 

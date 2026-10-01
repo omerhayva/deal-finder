@@ -1,10 +1,4 @@
--- Products and clicks tables for DealFinder catalog
--- Run with: psql -d deal-finder -f this_file.sql
--- Or use the Supabase SQL editor.
-
--- ============================================================
--- PRODUCTS TABLE
--- ============================================================
+-- Public deal catalogue and private outbound-click counters.
 
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
@@ -17,62 +11,44 @@ CREATE TABLE IF NOT EXISTS products (
   source TEXT NOT NULL DEFAULT 'manual',
   source_id TEXT,
   category TEXT NOT NULL DEFAULT 'General',
-  original_price NUMERIC NOT NULL,
-  discounted_price NUMERIC NOT NULL,
+  original_price NUMERIC NOT NULL CHECK (original_price > 0),
+  discounted_price NUMERIC NOT NULL CHECK (discounted_price > 0 AND discounted_price <= original_price),
   currency TEXT NOT NULL DEFAULT 'USD',
-  discount_percent NUMERIC NOT NULL,
+  discount_percent NUMERIC NOT NULL CHECK (discount_percent >= 0 AND discount_percent <= 100),
   coupon_code TEXT,
-  expires_at TIMESTAMP WITH TIME ZONE,
-  verified_at TIMESTAMP WITH TIME ZONE,
+  expires_at DATE,
+  published_at TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
 );
 
--- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
-CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug);
-CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_products_source ON products(source);
-
--- ============================================================
--- CLICKS TABLE (click tracking)
--- ============================================================
+CREATE INDEX IF NOT EXISTS idx_products_product_url ON products(product_url);
 
 CREATE TABLE IF NOT EXISTS clicks (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   referrer TEXT,
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_clicks_product_id ON clicks(product_id);
-CREATE INDEX IF NOT EXISTS idx_clicks_created_at ON clicks(created_at);
-
-ALTER TABLE clicks ENABLE ROW LEVEL SECURITY;
-
--- ============================================================
--- ROW LEVEL SECURITY
--- ============================================================
+CREATE INDEX IF NOT EXISTS idx_clicks_created_at ON clicks(created_at DESC);
 
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clicks ENABLE ROW LEVEL SECURITY;
 
--- Public read: approved + expired products visible to everyone
-CREATE POLICY "Public can view approved and expired products"
-  ON products FOR SELECT
-  USING (status = 'approved' OR status = 'expired');
+DROP POLICY IF EXISTS "Public can view approved and expired products" ON products;
+DROP POLICY IF EXISTS "Public can view current approved products" ON products;
+CREATE POLICY "Public can view current approved products"
+  ON products FOR SELECT TO anon, authenticated
+  USING (status = 'approved' AND (expires_at IS NULL OR expires_at >= CURRENT_DATE));
 
--- Service role bypasses RLS — no additional policies needed for admin operations.
-
--- Public cannot insert/update/delete products directly.
--- Admin operations go through server-side code with service role key.
-
--- Clicks: anyone can insert (tracking), anyone can read their own (not implemented — simplified)
-CREATE POLICY "Anyone can insert clicks"
-  ON clicks FOR INSERT
-  WITH CHECK (true);
-
-CREATE POLICY "Anyone can view clicks"
-  ON clicks FOR SELECT
-  USING (true);
+-- Click records are private. The server-role client records them and no
+-- anon/authenticated policy is granted for inserts or reads.
+DROP POLICY IF EXISTS "Anyone can insert clicks" ON clicks;
+DROP POLICY IF EXISTS "Anyone can view clicks" ON clicks;

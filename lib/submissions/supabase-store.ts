@@ -1,17 +1,19 @@
-import { Submission, SubmissionStatus } from "./types";
+import "server-only";
+
+import type { Submission, SubmissionStatus } from "./types";
 import type { SubmissionStore } from "./store";
-import { getSupabaseAdmin } from "../supabase-admin";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
-function toIso(value: unknown): string | undefined {
+function dateOnly(value: unknown): string | undefined {
   if (!value) return undefined;
-
   const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString().slice(0, 10);
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-
-  return date.toISOString();
+function isoDate(value: unknown): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function mapRowToSubmission(row: Record<string, unknown>): Submission {
@@ -24,37 +26,36 @@ function mapRowToSubmission(row: Record<string, unknown>): Submission {
     originalPrice: Number(row.original_price),
     discountedPrice: Number(row.discounted_price),
     couponCode: row.coupon_code ? String(row.coupon_code) : undefined,
-    expiresAt: toIso(row.expires_at),
+    expiresAt: dateOnly(row.expires_at),
     category: String(row.category),
     description: row.description ? String(row.description) : undefined,
     status: row.status as SubmissionStatus,
-    createdAt: toIso(row.created_at) ?? new Date().toISOString(),
+    createdAt: isoDate(row.created_at) ?? new Date().toISOString(),
+    approvedAt: isoDate(row.approved_at),
+    consentAcceptedAt: isoDate(row.consent_accepted_at),
   };
 }
 
 export class SupabaseSubmissionStore implements SubmissionStore {
   async create(submission: Submission): Promise<void> {
-    const { error } = await getSupabaseAdmin()
-      .from("submissions")
-      .insert({
-        id: submission.id,
-        seller_shop_url: submission.sellerShopUrl,
-        product_url: submission.productUrl,
-        title: submission.title,
-        image_url: submission.imageUrl ?? null,
-        original_price: submission.originalPrice,
-        discounted_price: submission.discountedPrice,
-        coupon_code: submission.couponCode ?? null,
-        expires_at: submission.expiresAt ?? null,
-        category: submission.category,
-        description: submission.description ?? null,
-        status: submission.status,
-        created_at: submission.createdAt,
-      });
+    const { error } = await getSupabaseAdmin().from("submissions").insert({
+      id: submission.id,
+      seller_shop_url: submission.sellerShopUrl,
+      product_url: submission.productUrl,
+      title: submission.title,
+      image_url: submission.imageUrl ?? null,
+      original_price: submission.originalPrice,
+      discounted_price: submission.discountedPrice,
+      coupon_code: submission.couponCode ?? null,
+      expires_at: submission.expiresAt ?? null,
+      category: submission.category,
+      description: submission.description ?? null,
+      status: submission.status,
+      consent_accepted_at: submission.consentAcceptedAt ?? new Date().toISOString(),
+      created_at: submission.createdAt,
+    });
 
-    if (error) {
-      throw new Error(`Supabase insert failed: ${error.message}`);
-    }
+    if (error) throw new Error(`Supabase submission insert failed: ${error.message}`);
   }
 
   async getAll(): Promise<readonly Submission[]> {
@@ -63,13 +64,8 @@ export class SupabaseSubmissionStore implements SubmissionStore {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) {
-      throw new Error(`Supabase select failed: ${error.message}`);
-    }
-
-    return (data ?? []).map((row) =>
-      mapRowToSubmission(row as Record<string, unknown>)
-    );
+    if (error) throw new Error(`Supabase submission select failed: ${error.message}`);
+    return (data ?? []).map((row) => mapRowToSubmission(row as Record<string, unknown>));
   }
 
   async getById(id: string): Promise<Submission | undefined> {
@@ -79,27 +75,35 @@ export class SupabaseSubmissionStore implements SubmissionStore {
       .eq("id", id)
       .maybeSingle();
 
-    if (error) {
-      throw new Error(`Supabase select failed: ${error.message}`);
-    }
-
-    return data
-      ? mapRowToSubmission(data as Record<string, unknown>)
-      : undefined;
+    if (error) throw new Error(`Supabase submission select failed: ${error.message}`);
+    return data ? mapRowToSubmission(data as Record<string, unknown>) : undefined;
   }
 
-  async updateStatus(
-    id: string,
-    status: SubmissionStatus
-  ): Promise<void> {
-    const { error } = await getSupabaseAdmin()
+  async getFirstApprovedAtForShop(shopUrl: string): Promise<string | undefined> {
+    const { data, error } = await getSupabaseAdmin()
       .from("submissions")
-      .update({ status })
-      .eq("id", id)
-      .eq("status", "pending");
+      .select("approved_at")
+      .eq("seller_shop_url", shopUrl)
+      .eq("status", "approved")
+      .not("approved_at", "is", null)
+      .order("approved_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-    if (error) {
-      throw new Error(`Supabase update failed: ${error.message}`);
-    }
+    if (error) throw new Error(`Supabase seller trial lookup failed: ${error.message}`);
+    return data?.approved_at ? isoDate(data.approved_at) : undefined;
+  }
+
+  async updateStatus(id: string, status: SubmissionStatus): Promise<void> {
+    const { data, error } = await getSupabaseAdmin()
+      .from("submissions")
+      .update({ status, approved_at: status === "approved" ? new Date().toISOString() : null })
+      .eq("id", id)
+      .eq("status", "pending")
+      .select("id")
+      .maybeSingle();
+
+    if (error) throw new Error(`Supabase submission update failed: ${error.message}`);
+    if (!data) throw new Error("Submission not found or no longer pending.");
   }
 }
